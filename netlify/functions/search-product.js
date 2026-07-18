@@ -1,4 +1,5 @@
 const SERPAPI_BASE = 'https://serpapi.com/search';
+const MAX_RESULTS = 10; // Número de resultados a mostrar (configurable)
 
 // Mock products como fallback
 const mockProducts = {
@@ -36,9 +37,9 @@ const mockProducts = {
 };
 
 function parsePrice(priceStr) {
-  if (!priceStr) return 0;
-  // Handle formats: "$29", "$29.50", "MXN 29", "29"
-  const cleaned = priceStr.replace(/[^0-9.]/g, '');
+  if (priceStr == null) return 0;
+  // Handle formats: "$29", "$29.50", "MXN 29", "29", or number 29
+  const cleaned = String(priceStr).replace(/[^0-9.]/g, '');
   const num = parseFloat(cleaned);
   return isNaN(num) ? 0 : num;
 }
@@ -66,16 +67,10 @@ function searchMock(query) {
   }
 
   if (results.length === 0) {
-    results = [
-      {
-        name: `Búsqueda de "${query}" - Sin resultados específicos`,
-        price: 0,
-        unit: 'pieza',
-        image: '',
-      },
-    ];
+    // Si no hay match exacto, devolver todos los productos disponibles como fallback
+    results = Object.values(mockProducts).flat().slice(0, MAX_RESULTS);
   } else {
-    results = results.slice(0, 5);
+    results = results.slice(0, MAX_RESULTS);
   }
 
   return results;
@@ -90,12 +85,10 @@ async function searchSerpApi(query) {
   }
 
   const params = new URLSearchParams({
-    engine: 'google_shopping',
-    q: `walmart.com.mx ${query}`,
+    engine: 'walmart',
+    query: query,
     api_key: apiKey,
-    hl: 'es',
-    gl: 'mx',
-    num: 5,
+    walmart_domain: 'walmart.com.mx',
   });
 
   const url = `${SERPAPI_BASE}?${params}`;
@@ -109,35 +102,28 @@ async function searchSerpApi(query) {
       return searchMock(query);
     }
 
-    const shoppingResults = data.shopping_results || [];
+    const organicResults = data.organic_results || [];
 
-    if (shoppingResults.length === 0) {
-      // Fallback a Google Search results si shopping_results está vacío
-      const organicResults = data.organic_results || [];
-      if (organicResults.length > 0) {
-        return organicResults.slice(0, 5).map((item) => ({
-          name: item.title || query,
-          price: parsePrice(item.price),
-          unit: extractUnit(item.title || ''),
-          image: item.thumbnail || '',
-        }));
-      }
-
+    if (organicResults.length === 0) {
       return searchMock(query);
     }
 
-    return shoppingResults.slice(0, 5).map((item) => {
-      // Extraer precio numérico del string
-      const price = parsePrice(item.price);
+    return organicResults.slice(0, MAX_RESULTS).map((item) => {
+      // El precio viene en primary_offer.offer_price
+      let price = 0;
+      if (item.primary_offer?.offer_price != null) {
+        price = parsePrice(item.primary_offer.offer_price);
+      } else if (item.price != null) {
+        price = parsePrice(item.price);
+      }
 
-      // Extraer unidad del nombre del producto
       const unit = extractUnit(item.title || '');
 
       return {
-        name: item.title || item.product_name || query,
+        name: item.title || query,
         price,
         unit,
-        image: item.thumbnail || item.image || '',
+        image: item.thumbnail || '',
       };
     });
   } catch (error) {
@@ -156,7 +142,7 @@ export const handler = async (event) => {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
       },
-      body: JSON.stringify({ error: 'Missing query' }),
+      body: JSON.stringify({ error: 'Consulta no válida' }),
     };
   }
 

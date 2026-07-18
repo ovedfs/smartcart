@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FiSearch, FiPlus, FiTrash2, FiRefreshCw, FiShoppingCart, FiEdit3, FiX, FiDollarSign } from 'react-icons/fi';
-import { Button, Input, Card, CardHeader, CardContent, Badge, Checkbox } from './components';
+import { Button, Input, Card, CardHeader, CardContent, Badge, Checkbox, StepperInput } from './components';
 
 const initialItems = [
   {
@@ -97,8 +97,10 @@ function App() {
       });
       const data = await res.json();
       const products = data.products || [];
-      // Guardar en caché
-      searchCache.set(cacheKey, products);
+      // Guardar en caché solo si hay resultados
+      if (products.length > 0) {
+        searchCache.set(cacheKey, products);
+      }
       setResults(products);
     } catch (error) {
       if (error.name === 'AbortError') return; // Ignorar cancelaciones
@@ -298,12 +300,15 @@ function App() {
                       placeholder="Ej: Manzanas"
                     />
                     <div className="grid grid-cols-2 gap-2">
-                      <Input
-                        value={customPrice}
-                        onChange={(e) => setCustomPrice(e.target.value)}
-                        type="number"
-                        placeholder="$0"
-                      />
+                      <div className="flex flex-col gap-1">
+                        <StepperInput
+                          value={customPrice}
+                          onChange={(e) => setCustomPrice(e.target.value)}
+                          min={0}
+                          step={5}
+                          placeholder="$0"
+                        />
+                      </div>
                       <Input
                         value={customUnit}
                         onChange={(e) => setCustomUnit(e.target.value)}
@@ -367,24 +372,22 @@ function App() {
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <label className="flex flex-col gap-1">
                           <span className="text-xs font-semibold text-slate-600">Cantidad</span>
-                          <Input
-                            type="number"
-                            min="0"
+                          <StepperInput
                             value={item.quantity}
                             onChange={(e) => updateItem(item.id, { quantity: Math.max(0, Number(e.target.value)) })}
+                            min={0}
+                            step={1}
                             onClick={(e) => e.stopPropagation()}
-                            className="text-xs font-bold px-2 py-1 h-8"
                           />
                         </label>
                         <label className="flex flex-col gap-1">
                           <span className="text-xs font-semibold text-slate-600">Precio</span>
-                          <Input
-                            type="number"
-                            min="0"
+                          <StepperInput
                             value={item.price}
                             onChange={(e) => updateItem(item.id, { price: Math.max(0, Number(e.target.value)) })}
+                            min={0}
+                            step={5}
                             onClick={(e) => e.stopPropagation()}
-                            className="text-xs font-bold px-2 py-1 h-8"
                           />
                         </label>
                       </div>
